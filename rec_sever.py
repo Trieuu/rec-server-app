@@ -17,7 +17,7 @@ rec.load_data(DATA_PATH)
 
 def _get_results(user_id: Union[int, str]) -> List[Dict[str, Any]]:
     try:
-        uid = int(user_id) 
+        uid = user_id 
         r_history, r_cross, r_occ, r_best = rec.rec_user_converter(uid)
         results = [r_history, r_cross, r_occ, r_best]
         print(f"[Recommendation] user_id={user_id} -> {[results[0].get('product_id',''), results[1].get('product_id',''), results[2].get('product_id',''), results[3].get('product_id','')]}") 

@@ -2,21 +2,360 @@ import json
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 from itertools import combinations
+import requests
 import re
 from typing import Dict, Iterable, List, Mapping, MutableMapping, Sequence, Set, Tuple,  Optional
 ProductID = str
 
+############# BE data extract
+
+API_BASE = "https://frontend-ec-project-server.onrender.com"
+# API_BASE = "http://localhost:5001"
+
+# Shared session (similar to axiosClient)
+session = requests.Session()
+session.headers.update({"Content-Type": "application/json"})
+
+
+class CartApi:
+    @staticmethod
+    def get_all():
+        return session.get(f"{API_BASE}/api/carts").json()
+
+    @staticmethod
+    def get_by_user_id(user_id):
+        return session.get(f"{API_BASE}/api/carts/{user_id}").json()
+
+    @staticmethod
+    def create(data):
+        return session.post(f"{API_BASE}/api/carts", json=data).json()
+
+    @staticmethod
+    def update(cart_id, data):
+        return session.put(f"{API_BASE}/api/carts/{cart_id}", json=data).json()
+
+    @staticmethod
+    def delete(cart_id):
+        return session.delete(f"{API_BASE}/api/carts/{cart_id}").json()
+
+class ProductApi:
+    @staticmethod
+    def get_all(params=None):
+        return session.get(f"{API_BASE}/api/products", params=params).json()
+
+    @staticmethod
+    def get_prediction(input_text):
+        return session.get(f"{API_BASE}/api/products/predict", params={"search": input_text}).json()
+
+    @staticmethod
+    def get_by_id(product_id):
+        return session.get(f"{API_BASE}/api/products/{product_id}").json()
+
+    @staticmethod
+    def create(data):
+        return session.post(f"{API_BASE}/api/products", json=data).json()
+
+    @staticmethod
+    def update(product_id, data):
+        return session.put(f"{API_BASE}/api/products/{product_id}", json=data).json()
+
+    @staticmethod
+    def delete(product_id):
+        return session.delete(f"{API_BASE}/api/products/{product_id}").json()
+
+
+class OrderApi:
+    @staticmethod
+    def get_all():
+        return session.get(f"{API_BASE}/api/orders").json()
+
+    @staticmethod
+    def get_by_id(order_id):
+        return session.get(f"{API_BASE}/api/orders/{order_id}").json()
+
+    @staticmethod
+    def get_by_user_id(user_id):
+        return session.get(f"{API_BASE}/api/orders/user/{user_id}").json()
+
+    @staticmethod
+    def create(data):
+        return session.post(f"{API_BASE}/api/orders", json=data).json()
+
+    @staticmethod
+    def update(order_id, data):
+        return session.put(f"{API_BASE}/api/orders/{order_id}", json=data).json()
+    
+def get_all_products():
+    total_page = ProductApi.get_all()
+    total_page = total_page.get("totalPages", 1)
+    all_products = []
+    for page in range(0, total_page):
+        response = ProductApi.get_all(params={"page": page + 1})
+        all_products.extend(response.get("products", []))
+    return all_products
+
+def convert_carts():
+    '''
+    Convert New to Old 
+    Old cart structure:
+    {
+      "user_id": 1, # currently use int, need to modify the code to str
+      "products": [
+        {
+          "product_id": "B1",
+          "quantity": 2
+        },
+        {
+          "product_id": "B3",
+          "quantity": 3
+        }
+      ]
+    }
+    New cart structure:
+    {
+        "_id": str,
+        "user_id": str,
+        "items": [], 
+            ([
+                {
+                    "product_id": str,
+                    "product_name": str,
+                    "quantity": int,
+                    "subtotal": float,
+                    "off_price": int,
+                    "isSelected": bool,
+                    "_id": str
+                }
+            ])
+        "createdAt": str,
+        "updatedAt": str,
+        "__v": int}
+    '''
+    carts = CartApi.get_all()
+    carts_new = []
+    for cart in carts:
+        new_cart = {
+            "user_id": cart["user_id"],  # convert to int
+            "products": [
+                {
+                    "product_id": item["product_id"],
+                    "quantity": item["quantity"]
+                } for item in cart.get("items", [])
+            ]
+        }
+        carts_new.append(new_cart)
+    
+    return carts_new
+
+def conver_orders():
+    '''
+    Convert orders (New) into oders and order_items (Old)
+    
+    Old orders structure:
+    {
+      "order_id": 1,
+      "user_id": 1,
+      "order_date": "02/07/2025",
+      "shipping_address": "Q5, TPHCM",
+      "total_amount": 59.97,
+      "off_price": 0,
+      "status": "Required"
+    }
+    
+    Old order_items structure:
+    {
+      "order_id": 1,
+      "products": [
+        {
+          "product_id": "B1",
+          "option": {},
+          "price": 0,
+          "quantity": 1,
+          "off_price": 0
+        },
+        {
+          "product_id": "B2",
+          "option": {},
+          "price": 0,
+          "quantity": 2,
+          "off_price": 0
+        }
+      ]
+    }
+    
+    New orders structure:
+    {
+        "_id": "68b56cee33d1edae4771ce12",
+        "user_id": "68b192b6f62f87ee1a7f23ae",
+        "user_name": "Alice",
+        "shipping_address": "227",
+        "subtotal": 23.27,
+        "off_price": 0,
+        "status": "Required",
+        "payment_method": "Cash on Delivery",
+        "message": "",
+        "items": [
+            {
+                "product_id": "68b33a89cddbce7889d9db70",
+                "product_name": "Butter Cream",
+                "quantity": 1,
+                "subtotal": 13.27,
+                "off_price": 0,
+                "_id": "68b56cdc33d1edae4771cdf4"
+            }
+        ],
+        "createdAt": "2025-09-01T09:52:46.454Z",
+        "updatedAt": "2025-09-01T09:52:46.454Z",
+        "__v": 0
+        }
+    '''
+    orders = OrderApi.get_all()
+    orders_new = []
+    order_items_new = []
+    for order in orders:
+        new_order = {
+            "order_id": order["_id"],
+            "user_id": order["user_id"],
+            "order_date": order["createdAt"][:10],  # extract date part
+            "shipping_address": order["shipping_address"],
+            "total_amount": order["subtotal"],
+            "off_price": order["off_price"],
+            "status": order["status"]
+        }
+        orders_new.append(new_order)
+        
+        new_order_items = {
+            "order_id": order["_id"],
+            "products": [
+                {
+                    "product_id": item["product_id"],
+                    "option": {},  # default to empty
+                    "price": item["subtotal"] / item["quantity"] if item["quantity"] > 0 else 0,  # calculate unit price
+                    "quantity": item["quantity"],
+                    "off_price": item["off_price"]
+                } for item in order.get("items", [])
+            ]
+        }
+        order_items_new.append(new_order_items)
+    return orders_new, order_items_new
+
+def convert_products():
+    '''
+    Convert New to Old 
+    Old product structure:
+    {
+      "product_id": "B1",
+      "type": "flower",
+      "name": "Red Rose Bouquet",
+      "price": 19.99, # replace by dynamicPrice
+      "stock": 12,
+      "available": true,
+      "description": "A luxurious bouquet of fresh red roses, hand-tied with lush green foliage. Perfect for weddings, anniversaries, or romantic gestures, these premium roses convey love, passion, and elegance. Each stem is carefully selected for vibrant color, long-lasting freshness, and soft velvety petals.",
+      "image_url": [
+        "/src/assets/demo_1.png",
+        "/src/assets/demo.png",
+        "/src/assets/demo_2.png",
+        "/src/assets/demo_3.png"
+      ],
+      "flower_details": {
+        "occasion": [
+          "Wedding"
+        ],
+        "color": [
+          "Pink Flowers"
+        ],
+        "flower_type": "Roses",
+        "options": []
+      }
+    }
+    
+    New product structure:
+    {
+            "_id": "68b33a89cddbce7889d9db70",
+            "name": "Butter Cream",
+            "price": 10,
+            "stock": 10,
+            "available": true,
+            "stems": 8,
+            "description": "A bright mixed Bouq featuring hot pink and yellow roses with pink carnations.",
+            "fill_stock_date": "2025-08-30T12:30:00.000Z",
+            "sales_count": 8,
+            "flower_type": [
+                "Roses"
+            ],
+            "colors": [
+                "Yellow Flowers"
+            ],
+            "occasions": [
+                "Birthday",
+                "Sympathy"
+            ],
+            "createdAt": "2025-08-30T17:53:13.155Z",
+            "updatedAt": "2025-09-01T16:12:07.717Z",
+            "__v": 0,
+            "image_url": [
+                "/src/assets/Cool%20Breeze.png",
+                "/src/assets/Exuberance.png",
+                "/src/assets/Flirtatious.png",
+                "exuberance",
+                "flirtatious",
+                "cool_breeze"
+            ],
+            "dynamicPrice": 11.56,
+            "condition": "New arrive"
+        }
+    '''
+    products = get_all_products()
+    products_new = []
+    for product in products:
+        new_product = {
+            "product_id": product["_id"],
+            "type": "flower",  # default to flower
+            "name": product["name"],
+            "price": product.get("dynamicPrice", product["price"]),
+            "stock": product["stock"],
+            "available": product["available"],
+            "description": product["description"],
+            "image_url": product["image_url"],
+            "flower_details": {
+                "occasion": product.get("occasions", []),
+                "color": product.get("colors", []),
+                "flower_type": ", ".join(product.get("flower_type", [])),
+                "options": []  # default to empty
+            }
+        }
+        products_new.append(new_product)
+    return products_new
+
+def fetch_all_data():
+    carts = convert_carts()
+    products = convert_products()
+    orders, order_items = conver_orders()
+    return {
+        "carts": carts,
+        "products": products,
+        "orders": orders,
+        "order_items": order_items
+    }
+    
+def extract_to_json():
+    data = fetch_all_data()
+    with open("data.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+extract_to_json()
 
 ############# Utility function
 
 def init_data(data_path = 'data.json'):
+    
     # Open the file and load the JSON data
     with open(data_path, 'r') as file:
         data = json.load(file)
         
     # Extract arrays from data
     orders = data.get("orders", [])
-    orders = [order for order in orders if order.get('status','') == 'Done']
+    #orders = [order for order in orders if order.get('status','') == 'Done']
     
     orders_id_list = [order['order_id'] for order in orders]
     
@@ -30,16 +369,7 @@ def init_data(data_path = 'data.json'):
 
 
 def extract_type(product_ids, products, type_filter = ['flower']):
-    """
-    Extract flower_type, occasion, and color for the given product_ids (flowers only).
     
-    Args:
-        product_ids (list): List of product IDs.
-        products (list): List of product dictionaries.
-    
-    Returns:
-        product_types: List of dictionaries with flower_type and color.
-    """
     product_types = []
     # Iterate through each product_id
     for product_id in product_ids:
@@ -79,45 +409,21 @@ def _is_sellable(pid):
     if not p or not p.get("available", True):
         return False
     # if flowers with options, check any option has stock > 0; otherwise use top-level stock
-    fd = p.get("flower_details")
-    if fd and "options" in fd:
-        return any(opt.get("stock", 0) > 0 for opt in fd["options"])
     return p.get("stock", 0) > 0
 
 ############# Recommendation History
 
 def get_orders_from_user(user_id, orders ,top_k = 1):
-    """
-    Get the top_k most recent orders for a given user, sorted by order_date.
-    
-    Args:
-        user_id (int): The ID of the user.
-        top_k (int): Number of latest orders to return.
-        orders (list): List of order dictionaries.
-    
-    Returns:
-        user_orders[:top_k]: List of up to top_k order dictionaries, sorted by date (most recent first).
-    """
     # Filter orders by user_id
     user_orders = [order for order in orders if order["user_id"] == user_id]
     
     # Sort orders by order_date in descending order
-    user_orders.sort(key=lambda x: datetime.strptime(x["order_date"], "%d/%m/%Y"), reverse=True)
+    user_orders.sort(key=lambda x: datetime.strptime(x["order_date"], "%Y-%m-%d"), reverse=True)
     
     # Return the top_k orders (or all if fewer than top_k)
     return user_orders[:top_k]
 
 def get_products_ids_from_orders(orders, order_items):
-    """
-    Extract unique product_ids from the provided orders' order_items.
-    
-    Args:
-        orders (list): List of order dictionaries.
-        order_items (list): List of order_items dictionaries.
-    
-    Returns:
-        product_ids: Set of unique product_ids.
-    """
     product_ids = set()  # Use set for uniqueness
     
     # Iterate through each order
@@ -153,6 +459,11 @@ def rec_user_his(user_id, orders, order_items, products, top_k, recommended_list
     
     _, flower_count, color_count = user_data_counter(user_product_types)
     
+    # print(f"user_products_ids: {user_products_ids}")
+    # print(f"user_product_types: {user_product_types}")
+    # print(f"flower_count: {flower_count}")
+    # print(f"color_count: {color_count}")
+    
     
     #print(flower_count)
     #print(color_count)
@@ -160,6 +471,7 @@ def rec_user_his(user_id, orders, order_items, products, top_k, recommended_list
     # rank signals
     ranked_flower = [ft for ft,_ in Counter(flower_count).most_common()]
     ranked_color  = [c for c,_ in Counter(color_count).most_common()]
+    # print(ranked_flower, ranked_color)
 
     # try same flower_type with a color they haven't bought
     for ft in ranked_flower:
@@ -193,235 +505,30 @@ def rec_user_his(user_id, orders, order_items, products, top_k, recommended_list
 
 ############# Recommendation Occasion
 
-events = {
-    "New Year": "01/01",
-    "Valentine's Day": "14/02",
-    "International Women's Day": "08/03",
-    "Easter": "22/03 - 25/04",
-    "Mother's Day": "08/05 - 14/05",
-    "Father's Day": "15/06 - 21/06",
-    "Mid-Autumn Festival": "15/09 - 10/10",
-    "Halloween": "31/10",
-    "Thanksgiving": "22/11 - 28/11",
-    "Christmas": "25/12",
-    "Vietnamese Women's Day": "20/10",
-    "Vietnamese Teacher's Day": "20/11",
-    "Lunar New Year (Tết)": "20/01 - 20/02",
-    "Reunification Day": "30/04",
-    "Labor Day": "01/05",
-    "Vietnam National Day": "02/09",
-    "Chinese New Year": "21/01 - 20/02",
-    "Earth Day": "22/04",
-    "Summer Solstice": "20/06 - 22/06",
-    "Mid-Year Sales": "01/06 - 15/07",
-    "Black Friday": "23/11 - 29/11",
-    "Cyber Monday": "26/11 - 02/12",
-    "Singles' Day": "11/11",
-    "World Environment Day": "05/06",
-    "International Friendship Day": "30/07",
-    "Oktoberfest": "21/09 - 06/10",
-    "Winter Solstice": "20/12 - 23/12",
-    "Boxing Day": "26/12",
-    "Hung Kings Commemoration Day": "10/03",
-    "Tet Trung Thu (Children's Festival)": "15/08",
-}
-
-
-def get_nearest_upcoming_event(events=events, now=None):
-    """
-    Find the next upcoming event (or the event currently in progress).
-    - Single-day events roll to next year if already passed this year.
-    - Ranged events return immediately if 'now' is within the range; otherwise
-      the next range start in the future (this year or next) is considered.
-    """
-    if now is None:
-        now = datetime.now()
-
-    next_event = None
-    min_diff = timedelta(days=10**6)  # big number
-
-    for event_name, date_str in events.items():
-        if ' - ' in date_str:
-            # Handle ranges like "DD/MM - DD/MM"
-            start_str, end_str = [s.strip() for s in date_str.split(' - ')]
-
-            # Build start/end for the *current* cycle (might span year-end)
-            year = now.year
-            start = datetime.strptime(f"{start_str}/{year}", "%d/%m/%Y")
-            end = datetime.strptime(f"{end_str}/{year}", "%d/%m/%Y")
-
-            # If the range wraps to next year (e.g., 25/12 - 05/01)
-            if end < start:
-                end = end.replace(year=year + 1)
-
-            # Case 1: currently inside the range → it's the "upcoming" event
-            if start <= now <= end:
-                return event_name
-
-            # Case 2: upcoming later this year
-            if now < start:
-                candidate_start = start
-            else:
-                # already passed; consider next year's occurrence
-                next_year_start = start.replace(year=start.year + 1)
-                # Recompute next year's end respecting wrap logic
-                candidate_start = next_year_start
-
-            diff = candidate_start - now
-
-        else:
-            # Single-day event "DD/MM"
-            year = now.year
-            date_this_year = datetime.strptime(f"{date_str}/{year}", "%d/%m/%Y")
-            if date_this_year < now:
-                candidate = date_this_year.replace(year=year + 1)
-            else:
-                candidate = date_this_year
-            diff = candidate - now
-
-        if timedelta(0) <= diff < min_diff:
-            min_diff = diff
-            next_event = event_name
-
-    return next_event if next_event else "No valid upcoming events found"
-
 def rec_user_occasion(products, recommended_list):
-    up_comming_event = get_nearest_upcoming_event()
-    products_event = [product for product in products if up_comming_event in product.get('flower_details',{}).get('occasion',[])]
-    #print(products_event)
-    
-    products_event = [product for product in products_event if product.get('product_id','') not in recommended_list and _is_sellable(product.get('product_id',''))]
-    #print(products_event)
-    
-    if products_event:
-        recommended_list.add(products_event[0].get('product_id',''))
-        return {
-            'flag' : 'occasion',
-            'product_id' : products_event[0].get('product_id',''),
-            'color' : '',
-            'event' : up_comming_event
-        }, recommended_list
-    else:
-        return {
-            'flag' : 'occasion',
-            'product_id' : '',
-            'color' : '',
-            'event' : ''
-        }, recommended_list
+    return {
+        'flag' : 'occasion',
+        'product_id' : '',
+        'color' : '',
+        'event' : ''
+    }, recommended_list
 
 ############# Recommendation Cart
 
-_pair_regex = re.compile(r"^([A-Za-z]+)(\d+)$")
-
-def get_products_from_user_carts(user_id, carts):
-    cart_item = next((c for c in carts if c["user_id"] == user_id), None)
-    return {p["product_id"] for p in cart_item["products"]} if cart_item else set()
-
-def _natural_key(pid: ProductID) -> Tuple[str, int]:
-    m = _pair_regex.match(pid)
-    if not m:
-        return (pid, 0)
-    prefix, num = m.groups()
-    return (prefix, int(num))
-
-def pair_normalize(product_id_1: ProductID, product_id_2: ProductID) -> str:
-    a, b = sorted((product_id_1, product_id_2), key=_natural_key)
-    return f"{a} - {b}"
-
-def create_pair(
-    product_list: Sequence[ProductID],
-    pair_count_place_holder: Optional[MutableMapping[str, int]] = None, # MutableMapping -> Dictionary object type like Dictionary, Counter, etc
-) -> Dict[str, int]:
-    pair_count = pair_count_place_holder or Counter()
-    unique_ids = tuple(set(product_list))
-    for a, b in combinations(unique_ids, 2):
-        key = pair_normalize(a, b)
-        pair_count[key] = pair_count.get(key, 0) + 1
-    return dict(pair_count)
-
-def product_pair_count(order_items: Iterable[Mapping]) -> Dict[str, int]:
-    counts = Counter()
-    for order in order_items:
-        product_ids = {item["product_id"] for item in order.get("products", [])}
-        if not product_ids or len(product_ids) < 2:
-            continue
-        #print(product_ids)
-        counts = create_pair(list(product_ids), counts)
-    return dict(counts)
-
-def rec_user_cross_selling(user_id, order_items, carts, recommended_list ):
-    pair_count_db = product_pair_count(order_items)
-    #print(pair_count_db)
-
-    user_products_id: Set[ProductID] = set(get_products_from_user_carts(user_id, carts))
-    #print(user_products_id)
-
-    user_pairs = set(create_pair(list(user_products_id)).keys())
-    #print(user_pairs)
-    
-    # Maybe use for further filtering
-    # user_products_type = extract_type(user_products_id, products, ["flower", "vase"])
-    # user_products_type_count, _, _ = user_data_counter(user_products_type) 
-
-    candidates = []
-    if user_products_id:
-        for pair_key, freq in pair_count_db.items():
-            p1, p2 = pair_key.replace(" ", "").split("-")
-            # consider pairs that involve the user's cart items
-            if (p1 in user_products_id) ^ (p2 in user_products_id) or (
-                p1 in user_products_id and p2 in user_products_id
-            ):
-                # skip if the user already has the whole pair present
-                if pair_key in user_pairs:
-                    continue
-                candidates.append((pair_key, freq))
-
-    #print(candidates)
-
-    if not candidates:
-        return {
-            'flag' : 'cross_selling',
-            'product_id': '',
-            'color' : '',
-            'event': ''
-        }, recommended_list
-    
-    candidates.sort(
-        key=lambda kv: (-kv[1], tuple(map(_natural_key, kv[0].split(" - "))))
-    )
-
-    for pair_key, _freq in candidates:
-        p1, p2 = pair_key.split(" - ")
-        if p1 in user_products_id and p2 not in user_products_id:
-            if p2 in recommended_list or not _is_sellable(p2):
-                continue
-            recommended_list.add(p2)
-            return {
-                'flag' : 'cross_selling',
-                "product_id": p2,
-                'color' : '',
-                'event': ''
-            }, recommended_list
-        if p2 in user_products_id and p1 not in user_products_id:
-            if p1 in recommended_list or not _is_sellable(p1):
-                continue
-            recommended_list.add(p1)
-            return {
-                'flag' : 'cross_selling',
-                "product_id": p1,
-                'color' : '',
-                'event': ''
-                }, recommended_list
-
+def rec_user_cross_selling(user_id, order_items, carts, recommended_list):
     return {
         'flag' : 'cross_selling',
         'product_id': '',
         'color' : '',
         'event': ''
-    }, recommended_list
+        }, recommended_list
 
 ############# Recommendation Best Selling
 from collections import defaultdict
+
+def get_products_from_user_carts(user_id, carts):
+    cart_item = next((c for c in carts if c["user_id"] == user_id), None)
+    return {p["product_id"] for p in cart_item["products"]} if cart_item else set()
 
 def rec_user_best_selling(user_id, order_items, carts, recommended_list):
     """
@@ -449,7 +556,7 @@ def rec_user_best_selling(user_id, order_items, carts, recommended_list):
 
     if not revenue:
         return {'flag': 'best', 'product_ids': [], 'color': '', 'event': ''}, recommended_list
-
+    
     # 2) Sort products by revenue desc
     sorted_pids = [pid for pid, _rev in sorted(revenue.items(), key=lambda kv: kv[1], reverse=True)]
 
@@ -501,18 +608,18 @@ def rec_user_converter(user_id, top_k = 3):
     #print(rec_best.get('product_ids', []))
     
     if rec_his.get('product_id', '') == '' and rec_cross.get('product_id','') == '':
-        rec_his['product_id'] = rec_best.get('product_ids',[])[1] 
-        rec_cross['product_id'] = rec_best.get('product_ids',[])[2]
+        rec_his['product_id'] = rec_best.get('product_ids',[])[1] if len(rec_best.get('product_ids',[])) > 1 else ''
+        rec_cross['product_id'] = rec_best.get('product_ids',[])[2] if len(rec_best.get('product_ids',[])) > 2 else ''
         
     if rec_his.get('product_id','') == '':
-        rec_his['product_id'] = rec_best.get('product_ids',[])[1]
+        rec_his['product_id'] = rec_best.get('product_ids',[])[1] if len(rec_best.get('product_ids',[])) > 1 else ''
         
     if rec_cross.get('product_id','') == '':
-        rec_cross['product_id'] = rec_best.get('product_ids',[])[1]
+        rec_cross['product_id'] = rec_best.get('product_ids',[])[1] if len(rec_best.get('product_ids',[])) > 1 else ''
         
-    rec_best['product_id'] = rec_best.get('product_ids',[])[0]
+    rec_best['product_id'] = rec_best.get('product_ids',[])[0] if len(rec_best.get('product_ids',[])) > 0 else ''
     
-    print(rec_best['product_ids'])
+    #print(rec_best['product_ids'])
         
     return rec_his, rec_cross, rec_occ, rec_best
 
@@ -527,4 +634,4 @@ load_data()
 
 # also guard the demo print so it doesn't run on import
 if __name__ == "__main__":
-    print(rec_user_converter(1))
+    print(rec_user_converter('68b192b6f62f87ee1a7f23ae'))

@@ -27,7 +27,7 @@
             "product_id": "68b33a89cddbce7889d9db70",
             "type": "flower",
             "name": "Butter Cream",
-            "price": 11.82,
+            "price": 11.68,
             "stock": 10,
             "available": true,
             "description": "A bright mixed Bouq featuring hot pink and yellow roses with pink carnations.",
@@ -53,7 +53,7 @@
             "product_id": "68b33aa8cddbce7889d9db72",
             "type": "flower",
             "name": "Sugar Crush",
-            "price": 9.01,
+            "price": 8.9,
             "stock": 15,
             "available": true,
             "description": "Peach and cream rose bouquet with carnations, alstroemeria, and snapdragon",
@@ -76,7 +76,7 @@
             "product_id": "68b3c0db05d592893aea4d9b",
             "type": "flower",
             "name": "Glowing",
-            "price": 5.5,
+            "price": 5.42,
             "stock": 2,
             "available": true,
             "description": "This bouquet of flowers is composed of white hydrangeas and lilies.",
@@ -101,7 +101,7 @@
             "product_id": "68b5a044b439192b2a241cd8",
             "type": "flower",
             "name": "Red Rose Bouquet",
-            "price": 6.32,
+            "price": 6.25,
             "stock": 7,
             "available": true,
             "description": "Assorted stems of seasonal roses.",
@@ -117,29 +117,6 @@
                 ],
                 "color": [
                     "Pink Flowers"
-                ],
-                "flower_type": "Roses",
-                "options": []
-            }
-        },
-        {
-            "product_id": "68b6866048986588e6d8ffad",
-            "type": "flower",
-            "name": "Lemonade",
-            "price": 16.64,
-            "stock": 10,
-            "available": true,
-            "description": "Bright arrangement with yellow roses and peach carnations.",
-            "image_url": [
-                "lemonade"
-            ],
-            "flower_details": {
-                "occasion": [
-                    "Wedding"
-                ],
-                "color": [
-                    "Pink Flowers",
-                    "Yellow Flowers"
                 ],
                 "flower_type": "Roses",
                 "options": []
