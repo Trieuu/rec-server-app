@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Union
 from flask import Flask, jsonify, request, abort
 from flask_cors import CORS
 
+import requests
+
 import recommendation as rec  # must be in same dir
 
 app = Flask(__name__)
