@@ -2,7 +2,9 @@ import json
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 from itertools import combinations
+
 import requests
+
 import re
 from typing import Dict, Iterable, List, Mapping, MutableMapping, Sequence, Set, Tuple,  Optional
 ProductID = str
